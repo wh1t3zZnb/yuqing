@@ -15,18 +15,14 @@ export default {
     }
     if (request.method === 'POST' && url.pathname === '/api/chat') {
       let payload = {}; try { payload = await request.json() } catch {}
-      const apiKey = env.VOLC_API_KEY
-      if (!apiKey) {
-        const h = new Headers({ 'Content-Type': 'application/json' }); setCORS(h)
-        return new Response(JSON.stringify({ error: 'missing_api_key' }), { status: 401, headers: h })
-      }
       let resp
-      if (payload.service === 'baidu') {
+      if ((payload.service || '').toLowerCase() === 'baidu') {
         const bkey = env.BAIDU_API_KEY
         if (!bkey) {
           const h = new Headers({ 'Content-Type': 'application/json' }); setCORS(h)
           return new Response(JSON.stringify({ error: 'missing_baidu_api_key' }), { status: 401, headers: h })
         }
+        const body = (() => { const o = { ...payload }; delete o.service; return o })()
         resp = await fetch('https://qianfan.baidubce.com/v2/chat/completions', {
           method: 'POST',
           headers: {
@@ -34,9 +30,10 @@ export default {
             'Accept': 'application/json',
             'Authorization': `Bearer ${bkey}`
           },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(body)
         })
         if (resp.status === 401) {
+          const body2 = (() => { const o = { ...payload }; delete o.service; return o })()
           resp = await fetch('https://qianfan.baidubce.com/v2/chat/completions', {
             method: 'POST',
             headers: {
@@ -44,10 +41,16 @@ export default {
               'Accept': 'application/json',
               'Authorization': `Bearer+ ${bkey}`
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(body2)
           })
         }
       } else {
+        const apiKey = env.VOLC_API_KEY
+        if (!apiKey) {
+          const h = new Headers({ 'Content-Type': 'application/json' }); setCORS(h)
+          return new Response(JSON.stringify({ error: 'missing_api_key' }), { status: 401, headers: h })
+        }
+        const body = (() => { const o = { ...payload }; delete o.service; return o })()
         resp = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
           method: 'POST',
           headers: {
@@ -55,7 +58,7 @@ export default {
             'Accept': 'application/json',
             'Authorization': `Bearer ${apiKey}`
           },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(body)
         })
       }
       const text = await resp.text()

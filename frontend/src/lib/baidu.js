@@ -19,16 +19,7 @@ function buildPayload(query, { model = 'deepseek-r1', topK = 10, sites = null } 
   return payload;
 }
 
-async function postOnce(apiKey, payload, bearerPlus = false) {
-  const url = '/api/baidu';
-  const auth = (bearerPlus ? 'Bearer+' : 'Bearer') + ' ' + apiKey.trim();
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': auth },
-    body: JSON.stringify(payload),
-  });
-  return res;
-}
+// removed: pure-frontend posting with Authorization; now routed via Workers
 
 function parseItemsAndSummary(data, topK) {
   const k = Math.max(1, Math.min(parseInt(topK || 10, 10), 20));
@@ -55,14 +46,16 @@ function parseItemsAndSummary(data, topK) {
   return { items, summary };
 }
 
-export async function aiSearch(query, { apiKey, model = 'deepseek-r1', topK = 10, sites = null } = {}) {
+export async function aiSearch(query, { apiUrl, model = 'ERNIE-4.0-mini', topK = 10, sites = null } = {}) {
   if (!query?.trim()) return { items: [], summary: '' };
-  if (!apiKey?.trim()) throw new Error('BAIDU_AI_SEARCH_APIKEY is required');
-  const payload = buildPayload(query, { model, topK, sites });
-  let res = await postOnce(apiKey, payload, false);
-  if (res.status === 401) {
-    res = await postOnce(apiKey, payload, true);
-  }
+  if (!apiUrl?.trim()) throw new Error('API URL is required');
+  const base = buildPayload(query, { model, topK, sites });
+  const body = { service: 'baidu', ...base };
+  const res = await fetch(apiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify(body),
+  });
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
     throw new Error(`Baidu AI Search Error: ${res.status} ${errText}`);
