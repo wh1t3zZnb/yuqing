@@ -6,8 +6,7 @@ import { runAnalysisFlow } from './lib/orchestrator'
 
 function App() {
   const [query, setQuery] = useState('')
-  const [apiKey, setApiKey] = useState(localStorage.getItem('doubao_apikey') || '')
-  const [baiduKey, setBaiduKey] = useState(localStorage.getItem('baidu_apikey') || '')
+  const [apiUrl, setApiUrl] = useState(localStorage.getItem('api_url') || '')
   const [version, setVersion] = useState('0.3.2-frontend-ai')
   const [logs, setLogs] = useState([])
   const [summary, setSummary] = useState('')
@@ -20,12 +19,8 @@ function App() {
   const logEndRef = useRef(null)
 
   useEffect(() => {
-    localStorage.setItem('doubao_apikey', apiKey)
-  }, [apiKey])
-
-  useEffect(() => {
-    localStorage.setItem('baidu_apikey', baiduKey)
-  }, [baiduKey])
+    localStorage.setItem('api_url', apiUrl)
+  }, [apiUrl])
 
 
   useEffect(() => {
@@ -44,8 +39,8 @@ function App() {
       setError('请填写查询主题')
       return
     }
-    if (!baiduKey.trim() || !apiKey.trim()) {
-      setError('请填写 Baidu AI 与 Doubao 的 API Key')
+    if (!apiUrl.trim()) {
+      setError('请填写 Cloudflare Worker 接口地址')
       return
     }
     setError('')
@@ -57,32 +52,21 @@ function App() {
     setIsBusy(true)
 
     appendLog('查询主题：' + query)
-    appendLog('模式：纯前端运行（统一检索+质量判定）')
+    appendLog('模式：Workers 接口（LLM 摘要与报告）')
 
     let phase = 'init'
 
     try {
-      for await (const ev of runAnalysisFlow(query, { baiduKey, volcKey: apiKey, baiduModel: 'deepseek-r1' })) {
+      for await (const ev of runAnalysisFlow(query, { apiUrl, model: 'qwen-plus' })) {
         switch (ev.type) {
           case 'planning':
             appendLog('规划：时间窗 ' + (ev.plan.timelimit || 'm') + '，RSS ' + (ev.plan.use_rss ? '启用' : '关闭'))
             break
 
           case 'search':
-            if (ev.mode === 'ai') {
-              phase = 'ai'
-              appendLog('阶段：统一检索（AI）')
-              appendLog('这轮拿到：' + (ev.batch_count ?? 0) + ' 条')
-            } else if (ev.mode === 'ai_recheck') {
-              phase = 'ai_recheck'
-              appendLog('阶段：二次检索（补充）')
-              if (ev.recheck_query) appendLog('重检查询：' + ev.recheck_query)
-              appendLog('这轮拿到：' + (ev.batch_count ?? 0) + ' 条')
-            }
             break
 
           case 'doubao_gate':
-            appendLog('质量判定：' + (ev.ready ? '材料足够' : '材料不足') + '｜置信度 ' + ev.confidence)
             break
 
           case 'filter':
@@ -162,25 +146,15 @@ function App() {
           <div className="flex gap-2 items-center">
             <Key size={16} className="opacity-50" />
             <input
-              type="password"
-              value={baiduKey}
-              onChange={(e) => setBaiduKey(e.target.value)}
-              placeholder="Enter Baidu AI Search API Key"
-              className="flex-1 input-primary"
-            />
-          </div>
-          <div className="flex gap-2 items-center mt-2">
-            <Key size={16} className="opacity-50" />
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Enter Doubao/Volcengine API Key"
+              type="text"
+              value={apiUrl}
+              onChange={(e) => setApiUrl(e.target.value)}
+              placeholder="Enter Cloudflare Worker API URL (https://.../api/chat)"
               className="flex-1 input-primary"
             />
           </div>
           <div className="muted mt-1 text-xs">
-            Keys are stored locally in your browser.
+            API URL is stored locally in your browser.
           </div>
         </div>
 
