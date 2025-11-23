@@ -18,12 +18,43 @@ export async function* runAnalysisFlow(query, { apiUrl, model = 'doubao-seed-1-6
     yield { type: 'baidu_search_failed', message: e.message || 'Baidu AI 搜索失败' };
   }
 
-  yield { type: 'filter', accepted_this_round: items.length };
-  yield { type: 'fetch', success: items.length, fail: 0 };
+  const kw = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
+  const accepted = [];
+  const rejected = [];
+  for (const it of items) {
+    const t = String(it.title || '').toLowerCase();
+    const s = String(it.source || '').toLowerCase();
+    const hit = kw.length ? kw.some(k => t.includes(k)) : true;
+    const bad = ['baidu.com', 'image.baidu.com', 'v.baidu.com'].some(x => s.includes(x));
+    if (hit && !bad) accepted.push(it); else rejected.push(it);
+  }
+  yield { type: 'filter', accepted_this_round: accepted.length };
+  if (rejected.length) yield { type: 'filter_rejects', count: rejected.length };
+
+  const fetchUrl = (() => {
+    try { return apiUrl.replace('/api/chat', '/api/fetch'); } catch { return apiUrl; }
+  })();
+  let success = 0, fail = 0;
+  const cleaned = [];
+  const strip = (html) => String(html || '').replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+  const tasks = accepted.map(async (it) => {
+    try {
+      const res = await fetch(fetchUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain' }, body: JSON.stringify({ url: it.href || it.url }) });
+      if (!res.ok) throw new Error('fetch_fail_' + res.status);
+      const html = await res.text();
+      const text = strip(html).slice(0, 4000);
+      cleaned.push({ ...it, body: text });
+      success++;
+    } catch {
+      fail++;
+    }
+  });
+  await Promise.allSettled(tasks);
+  yield { type: 'fetch', success, fail };
 
   let report = '';
   try {
-    const refsText = items.map((it, i) => `${i + 1}. ${it.title || it.href} ${it.href || ''}`).join('\n');
+    const refsText = cleaned.map((it, i) => `${i + 1}. ${it.title || it.href} ${it.href || ''}`).join('\n');
     const messages = [
       { role: 'system', content: '你是专业的舆情分析报告撰写专家。' },
       { role: 'user', content: `请按Markdown结构撰写《舆情分析报告》，主题：${query}。以下是参考材料链接（可用于提取要点与论证）：\n${refsText || '（未使用百度材料，本报告为直出）'}` }
@@ -34,5 +65,5 @@ export async function* runAnalysisFlow(query, { apiUrl, model = 'doubao-seed-1-6
     yield { type: 'error', message: e.message || 'LLM 生成报告失败' };
   }
 
-  yield { type: 'final', summary: brief, detailed_report: report, items };
+  yield { type: 'final', summary: brief, detailed_report: report, items: cleaned };
 }

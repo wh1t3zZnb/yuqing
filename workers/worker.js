@@ -88,6 +88,24 @@ export default {
       const h = new Headers({ 'Content-Type': 'application/json' }); setCORS(h)
       return new Response(text, { status: resp.status, headers: h })
     }
+    if (request.method === 'POST' && (path === '/api/fetch')) {
+      let payload = {}; try { payload = await request.json() } catch {}
+      const target = String(Reflect.get(Object(payload), 'url') || '')
+      if (!target) {
+        const h = new Headers({ 'Content-Type': 'application/json' }); setCORS(h)
+        return new Response(JSON.stringify({ error: 'missing_url' }), { status: 400, headers: h })
+      }
+      let resp
+      try {
+        resp = await fetch(target, { method: 'GET' })
+      } catch (e) {
+        const h = new Headers({ 'Content-Type': 'application/json' }); setCORS(h)
+        return new Response(JSON.stringify({ error: 'fetch_failed', message: String(e && e.message || e) }), { status: 502, headers: h })
+      }
+      const text = await resp.text().catch(() => '')
+      const h = new Headers({ 'Content-Type': 'text/plain; charset=utf-8' }); setCORS(h)
+      return new Response(text, { status: 200, headers: h })
+    }
     const h = new Headers({ 'Content-Type': 'application/json' }); setCORS(h)
     return new Response(JSON.stringify({ error: 'not_found', path }), {
       status: 404, headers: h
