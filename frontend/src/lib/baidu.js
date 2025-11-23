@@ -45,20 +45,31 @@ function parseItemsAndSummary(data, topK) {
   return { items, summary };
 }
 
-export async function aiSearch(query, { apiUrl, model = 'ERNIE-4.0-mini', topK = 10, sites = null } = {}) {
+export async function aiSearch(query, { apiUrl, model = 'ERNIE-4.0-mini', topK = 10, sites = null, modelCandidates = [] } = {}) {
   if (!query?.trim()) return { items: [], summary: '' };
   if (!apiUrl?.trim()) throw new Error('API URL is required');
-  const base = buildPayload(query, { model, topK, sites });
-  const body = { service: 'baidu', ...base };
-  const res = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`Baidu AI Search Error: ${res.status} ${errText}`);
+  const candidates = Array.isArray(modelCandidates) && modelCandidates.length ? modelCandidates : [model, 'ERNIE-3.5', 'ERNIE-Speed-128k'];
+  let lastErr = '';
+  for (const m of candidates) {
+    const base = buildPayload(query, { model: m, topK, sites });
+    const body = { service: 'baidu', ...base };
+    try {
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        lastErr = `Baidu AI Search Error: ${res.status} ${errText}`;
+        continue;
+      }
+      const data = await res.json();
+      return parseItemsAndSummary(data, topK);
+    } catch (e) {
+      lastErr = e?.message || String(e);
+      continue;
+    }
   }
-  const data = await res.json();
-  return parseItemsAndSummary(data, topK);
+  throw new Error(lastErr || 'Baidu AI Search failed');
 }

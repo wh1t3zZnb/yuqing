@@ -7,6 +7,7 @@ import { runAnalysisFlow } from './lib/orchestrator'
 function App() {
   const [query, setQuery] = useState('')
   const [apiUrl, setApiUrl] = useState(localStorage.getItem('api_url') || '')
+  const [baiduModel, setBaiduModel] = useState(localStorage.getItem('baidu_model') || 'ERNIE-4.0-mini')
   const [version] = useState('0.3.2-frontend-ai')
   const [logs, setLogs] = useState([])
   const [summary, setSummary] = useState('')
@@ -21,6 +22,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('api_url', apiUrl)
   }, [apiUrl])
+
+  useEffect(() => {
+    localStorage.setItem('baidu_model', baiduModel)
+  }, [baiduModel])
 
 
 
@@ -54,17 +59,27 @@ function App() {
 
     appendLog('查询主题：' + query)
     appendLog('模式：Workers 接口（百度检索 + 豆包生成）')
+    appendLog('百度检索模型：' + (baiduModel || '默认'))
 
     let phase = 'init'
 
     try {
-      for await (const ev of runAnalysisFlow(query, { apiUrl, model: 'doubao-seed-1-6-251015', service: 'volc' })) {
+      for await (const ev of runAnalysisFlow(query, { apiUrl, model: 'doubao-seed-1-6-251015', service: 'volc', baiduModel })) {
         switch (ev.type) {
           case 'planning':
             appendLog('规划：时间窗 ' + (ev.plan.timelimit || 'm') + '，RSS ' + (ev.plan.use_rss ? '启用' : '关闭'))
             break
 
-          case 'search':
+          case 'baidu_search_start':
+            appendLog('百度检索：开始')
+            break
+
+          case 'baidu_search_ok':
+            appendLog('百度检索：成功，材料数量 ' + (ev.items || 0))
+            break
+
+          case 'baidu_search_failed':
+            appendLog('百度检索：失败，原因 ' + ev.message)
             break
 
           case 'doubao_gate':
@@ -157,6 +172,21 @@ function App() {
           <div className="muted mt-1 text-xs">
             API URL 存储在你的浏览器本地。
           </div>
+        </div>
+
+        <div className="form-group">
+          <label className="block mb-2 font-medium">百度检索模型（可选）</label>
+          <div className="flex gap-2 items-center">
+            <Key size={16} className="opacity-50" />
+            <input
+              type="text"
+              value={baiduModel}
+              onChange={(e) => setBaiduModel(e.target.value)}
+              placeholder="例如：ERNIE-4.0-mini（留空走默认轮询）"
+              className="flex-1 input-primary"
+            />
+          </div>
+          <div className="muted mt-1 text-xs">如果你账号未开通默认模型，可以填你账号可用的百度模型名。</div>
         </div>
 
         <div className="form-group mt-4">
