@@ -15,20 +15,49 @@ export default {
     }
     if (request.method === 'POST' && url.pathname === '/api/chat') {
       let payload = {}; try { payload = await request.json() } catch {}
-      const apiKey = env.DASHSCOPE_API_KEY
+      const apiKey = env.VOLC_API_KEY
       if (!apiKey) {
         const h = new Headers({ 'Content-Type': 'application/json' }); setCORS(h)
         return new Response(JSON.stringify({ error: 'missing_api_key' }), { status: 401, headers: h })
       }
-      const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify(payload)
-      })
+      let resp
+      if (payload.service === 'baidu') {
+        const bkey = env.BAIDU_API_KEY
+        if (!bkey) {
+          const h = new Headers({ 'Content-Type': 'application/json' }); setCORS(h)
+          return new Response(JSON.stringify({ error: 'missing_baidu_api_key' }), { status: 401, headers: h })
+        }
+        resp = await fetch('https://qianfan.baidubce.com/v2/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${bkey}`
+          },
+          body: JSON.stringify(payload)
+        })
+        if (resp.status === 401) {
+          resp = await fetch('https://qianfan.baidubce.com/v2/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Authorization': `Bearer+ ${bkey}`
+            },
+            body: JSON.stringify(payload)
+          })
+        }
+      } else {
+        resp = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify(payload)
+        })
+      }
       const text = await resp.text()
       const h = new Headers({ 'Content-Type': 'application/json' }); setCORS(h)
       return new Response(text, { status: resp.status, headers: h })

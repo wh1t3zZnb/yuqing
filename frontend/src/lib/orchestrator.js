@@ -1,6 +1,6 @@
 import { callLLM } from './llm';
 
-export async function* runAnalysisFlow(query, { apiUrl, model = 'qwen-plus' } = {}) {
+export async function* runAnalysisFlow(query, { apiUrl, model = 'doubao-seed-1-6-251015', service = 'volc' } = {}) {
   yield { type: 'planning', plan: { timelimit: 'm', use_rss: false }, version: '0.4.0-workers' };
   let brief = '';
   let report = '';
@@ -8,7 +8,7 @@ export async function* runAnalysisFlow(query, { apiUrl, model = 'qwen-plus' } = 
     brief = await callLLM(apiUrl, [
       { role: 'system', content: '只输出简要摘要。' },
       { role: 'user', content: `请给主题【${query}】写一段100字内的摘要。` }
-    ], model);
+    ], model, service);
   } catch {
     brief = ''
   }
@@ -16,7 +16,7 @@ export async function* runAnalysisFlow(query, { apiUrl, model = 'qwen-plus' } = 
     report = await callLLM(apiUrl, [
       { role: 'system', content: '你是专业的舆情分析报告撰写专家。' },
       { role: 'user', content: `请按Markdown结构撰写《舆情分析报告》，主题：${query}` }
-    ], model);
+    ], model, service);
   } catch {
     report = ''
   }

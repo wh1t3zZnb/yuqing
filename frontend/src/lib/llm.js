@@ -1,9 +1,9 @@
-export async function callLLM(apiUrl, messages, model = 'qwen-plus') {
+export async function callLLM(apiUrl, messages, model = 'doubao-seed-1-6-251015', service = 'volc') {
   if (!apiUrl) throw new Error('API URL is required');
   const response = await fetch(apiUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-    body: JSON.stringify({ model, messages, temperature: 0.3, stream: false, enable_thinking: false })
+    body: JSON.stringify({ service, model, messages, temperature: 0.3, stream: false, enable_thinking: false })
   });
   if (!response.ok) {
     const err = await response.text();
